@@ -1,3 +1,4 @@
+#include <QDebug>
 #include <QApplication>
 #include <QTextCodec>
 #include "mainwindow.h"
@@ -11,9 +12,14 @@ void initCodec()
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    initCodec();
-    MainWindow w;
-    w.show();
-
+    MainWindow *w = nullptr;
+    try {
+        initCodec();
+        w = new MainWindow();
+        w->show();
+    } catch (const QString &error) {
+        qCritical() << error;
+        return 1;
+    }
     return a.exec();
 }

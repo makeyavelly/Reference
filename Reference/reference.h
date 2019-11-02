@@ -7,9 +7,9 @@
 
 
 typedef QVector<QString> ReferenceRecord;
-typedef QVector<QString> ReferenceHeader;
+typedef QStringList ReferenceHeader;
 typedef QVector<ReferenceRecord> ReferenceTable;
-typedef QVector<QString> ReferenceIndexFields;
+typedef QStringList ReferenceIndexFields;
 typedef QHash<QString, ReferenceRecord*> ReferenceIndex;
 
 
@@ -20,7 +20,7 @@ class Reference
     QHash<QString, ReferenceIndex> _indexes;
 
 public:
-    Reference(const ReferenceHeader &names, const ReferenceTable &values,
+    Reference(const ReferenceHeader &header, const ReferenceTable &values,
               const ReferenceIndexFields &indexes);
     static Reference *create(const QString &nameTable, const ReferenceIndexFields &indexes);
 
@@ -30,7 +30,10 @@ public:
 private:
     Reference();
 
+    void setHeader(const ReferenceHeader &header);
+
     void appendIndex(const QString &name);
+    void appendIndex(const ReferenceIndexFields &indexes);
 
     int getField(const QString &name) const;
     ReferenceIndex &getIndex(const QString &name);
@@ -50,6 +53,8 @@ public:
                                const QString &value);
     QString get(const QString &reference, const QString &index,
                 const QString &value, const QString &fieldName);
+
+    void clear();
 
 private:
     Reference *getReference(const QString &name);

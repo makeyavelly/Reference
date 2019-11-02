@@ -1,7 +1,7 @@
 TARGET = Reference
 TEMPLATE = app
 
-QT       += core gui
+QT       += core gui sql
 DEFINES += QT_DEPRECATED_WARNINGS
 CONFIG += c++11
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -9,11 +9,13 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 SOURCES += \
         Reference/reference.cpp \
         main.cpp \
-        mainwindow.cpp
+        mainwindow.cpp \
+        sql/lastsql.cpp
 
 HEADERS += \
         Reference/reference.h \
-        mainwindow.h
+        mainwindow.h \
+        sql/lastsql.h
 
 FORMS += \
         mainwindow.ui

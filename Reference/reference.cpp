@@ -1,24 +1,28 @@
-#include "Reference.h"
+#include "reference.h"
+#include "sql/lastsql.h"
 
 
-Reference::Reference(const ReferenceHeader &names, const ReferenceTable &values,
+Reference::Reference(const ReferenceHeader &header, const ReferenceTable &values,
                      const ReferenceIndexFields &indexes) :
     _values(values)
 {
-    for (int i = 0; i < names.count(); ++i) {
-        _fields.insert(names.at(i), i);
-    }
-    foreach (const QString &index, indexes) {
-        appendIndex(index);
-    }
+    setHeader(header);
+    appendIndex(indexes);
 }
 
 Reference *Reference::create(const QString &nameTable, const ReferenceIndexFields &indexes)
 {
     Reference *reference = new Reference;
-    // TODO-AFTER Загрузка справочника из БД
-    Q_UNUSED(nameTable);
-    Q_UNUSED(indexes);
+    sql::Table table = sql::Select(QString("SELECT * FROM \"%1\";").arg(nameTable));
+    reference->setHeader(table.header());
+    foreach (sql::Record record, table) {
+        ReferenceRecord newRecord;
+        for (int i = 0; i < record.count(); ++i) {
+            newRecord.push_back(record.get(i).toString());
+        }
+        reference->_values.push_back(newRecord);
+    }
+    reference->appendIndex(indexes);
     return reference;
 }
 
@@ -41,6 +45,14 @@ QString Reference::get(const QString &index, const QString &value, const QString
 Reference::Reference()
 {}
 
+void Reference::setHeader(const ReferenceHeader &header)
+{
+    _fields.clear();
+    for (int i = 0; i < header.count(); ++i) {
+        _fields.insert(header.at(i), i);
+    }
+}
+
 void Reference::appendIndex(const QString &name)
 {
     ReferenceIndex index;
@@ -53,6 +65,13 @@ void Reference::appendIndex(const QString &name)
         index.insert(record.at(iField), &record);
     }
     _indexes.insert(name, index);
+}
+
+void Reference::appendIndex(const ReferenceIndexFields &indexes)
+{
+    for (int i = 0; i < indexes.count(); ++i) {
+        appendIndex(indexes.at(i));
+    }
 }
 
 int Reference::getField(const QString &name) const
@@ -93,6 +112,11 @@ QString ListReference::get(const QString &reference, const QString &index,
                            const QString &value, const QString &fieldName)
 {
     return getReference(reference)->get(index, value, fieldName);
+}
+
+void ListReference::clear()
+{
+    _references.clear();
 }
 
 Reference *ListReference::getReference(const QString &name)
