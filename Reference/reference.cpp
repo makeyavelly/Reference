@@ -8,6 +8,7 @@ Reference::Reference(const ReferenceHeader &header, const ReferenceTable &values
 {
     setHeader(header);
     appendIndex(indexes);
+    compress();
 }
 
 Reference *Reference::create(const QString &nameTable, const ReferenceIndexFields &indexes)
@@ -15,7 +16,7 @@ Reference *Reference::create(const QString &nameTable, const ReferenceIndexField
     Reference *reference = new Reference;
     sql::Table table = sql::Select(QString("SELECT * FROM \"%1\";").arg(nameTable));
     reference->setHeader(table.header());
-    foreach (sql::Record record, table) {
+    for (sql::Record record : table) {
         ReferenceRecord newRecord;
         for (int i = 0; i < record.count(); ++i) {
             newRecord.push_back(record.get(i).toString());
@@ -23,6 +24,7 @@ Reference *Reference::create(const QString &nameTable, const ReferenceIndexField
         reference->_values.push_back(newRecord);
     }
     reference->appendIndex(indexes);
+    reference->compress();
     return reference;
 }
 
@@ -77,6 +79,16 @@ void Reference::appendIndex(const ReferenceIndexFields &indexes)
     for (int i = 0; i < indexes.count(); ++i) {
         appendIndex(indexes.at(i));
     }
+}
+
+void Reference::compress()
+{
+#if QT_VERSION_MAJOR > 4
+    _values.shrink_to_fit();
+    for (ReferenceRecord &record : _values) {
+        record.shrink_to_fit();
+    }
+#endif
 }
 
 int Reference::getField(const QString &name) const
