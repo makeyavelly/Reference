@@ -36,6 +36,7 @@ private:
     void appendIndex(const ReferenceIndexFields &indexes);
 
     int getField(const QString &name) const;
+    QVector<int> getFields(const QStringList &names) const;
     ReferenceIndex &getIndex(const QString &name);
 };
 

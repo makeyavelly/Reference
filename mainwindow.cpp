@@ -100,7 +100,7 @@ void MainWindow::generateReferences()
                                .arg(i)
                                .arg(genId())
                                .arg(j + 1)
-                               .arg(QString("Объект из справочника №%1 %2").arg(i).arg(j)));
+                               .arg(QString("Объект из справочника №%1 %2").arg(i).arg(j + 1)));
         }
         sql::exec(transact);
     }
@@ -114,7 +114,7 @@ void MainWindow::loadReferences()
     references.clear();
     for (int i = 1; i <= countReference; ++i) {
         references.appendReference(QString("ref_%1").arg(i),
-                                   ReferenceIndexFields {"id", "number", "name"});
+                                   ReferenceIndexFields {"id", "number", "name", "id,number"});
     }
 }
 

@@ -56,13 +56,18 @@ void Reference::setHeader(const ReferenceHeader &header)
 void Reference::appendIndex(const QString &name)
 {
     ReferenceIndex index;
-    int iField = getField(name);
-    if (iField < 0) {
+    const QStringList names = name.split(",");
+    const QVector<int> fields = getFields(names);
+    if (fields.isEmpty()) {
         throw QString("Задан неверный индекс");
     }
     for (int i = 0; i < _values.count(); ++i) {
         ReferenceRecord &record =_values[i];
-        index.insert(record.at(iField), &record);
+        QStringList keys;
+        for (int i = 0; i < fields.count(); ++i) {
+            keys.push_back(record.at(fields.at(i)));
+        }
+        index.insert(keys.join(","), &record);
     }
     _indexes.insert(name, index);
 }
@@ -77,6 +82,15 @@ void Reference::appendIndex(const ReferenceIndexFields &indexes)
 int Reference::getField(const QString &name) const
 {
     return _fields.value(name, -1);
+}
+
+QVector<int> Reference::getFields(const QStringList &names) const
+{
+    QVector<int> res;
+    for (int i = 0; i < names.count(); ++i) {
+        res.push_back(getField(names.at(i)));
+    }
+    return res;
 }
 
 ReferenceIndex &Reference::getIndex(const QString &name)
