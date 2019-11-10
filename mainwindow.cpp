@@ -7,7 +7,7 @@
 
 QString genId()
 {
-    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+    return QUuid::createUuid().toString();
 }
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -54,7 +54,7 @@ void MainWindow::connectIntoDb()
     QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL");
     db.setHostName("127.0.0.1");
     db.setPort(5432);
-    db.setDatabaseName("postgres");
+    db.setDatabaseName("test");
     db.setUserName("postgres");
     db.setPassword("1");
     if (!db.open()) {
@@ -99,7 +99,7 @@ void MainWindow::generateReferences()
                                        "VALUES ('%2', %3, '%4');")
                                .arg(i)
                                .arg(genId())
-                               .arg(j + 1)
+                               .arg(j % 20 + 1)
                                .arg(QString("Объект из справочника №%1 %2").arg(i).arg(j + 1)));
         }
         sql::exec(transact);
@@ -124,22 +124,24 @@ void MainWindow::selectFromReference(const QString &reference, const QString &in
         QTime t;
         int count = ui->spinCountSelect->value();
         t.start();
-        const ReferenceRecord *record = references.get(reference, index, value);
+        const QVector<ReferenceRecord*> records = references.getAll(reference, index, value);
         for (int i = 1; i < count; ++i) {
-            record = references.get(reference, index, value);
+            references.getAll(reference, index, value);
         }
         int time = t.elapsed();
         ui->editResult->append(QString("%1 запросов за %2 ms").arg(count).arg(time));
-        if (record) {
-            ui->editResult->setTextColor(QColor("#000000"));
-            QStringList text;
-            for (int i = 0; i < record->count(); ++i) {
-                text.push_back(record->at(i));
-            }
-            ui->editResult->append(text.join(" | "));
-        } else {
+        if (records.isEmpty()) {
             ui->editResult->setTextColor(QColor("#4F0000"));
             ui->editResult->append("Искомый объект не найден");
+        } else {
+            ui->editResult->setTextColor(QColor("#000000"));
+            for (ReferenceRecord *record : records) {
+                QStringList text;
+                for (int i = 0; i < record->count(); ++i) {
+                    text.push_back(record->at(i));
+                }
+                ui->editResult->append(text.join(" | "));
+            }
         }
     } catch (const QString &error) {
         ui->editResult->setTextColor(QColor("#4F0000"));
@@ -157,22 +159,24 @@ void MainWindow::selectFromDb(const QString &reference, const QString &index, co
                 .arg(index)
                 .arg(value);
         t.start();
-        sql::Record record = sql::GetRecord(select);
+        sql::Table table = sql::Select(select);
         for (int i = 1; i < count; ++i) {
-            record = sql::GetRecord(select);
+            sql::Select(select);
         }
         int time = t.elapsed();
         ui->editResult->append(QString("%1 запросов за %2 ms").arg(count).arg(time));
-        if (!record.isEmpty()) {
-            ui->editResult->setTextColor(QColor("#000000"));
-            QStringList text;
-            for (int i = 0; i < record.count(); ++i) {
-                text.push_back(record.get(i).toString());
-            }
-            ui->editResult->append(text.join(" | "));
-        } else {
+        if (table.isEmpty()) {
             ui->editResult->setTextColor(QColor("#4F0000"));
             ui->editResult->append("Искомый объект не найден");
+        } else {
+            ui->editResult->setTextColor(QColor("#000000"));
+            for (sql::Record &record : table) {
+                QStringList text;
+                for (int i = 0; i < record.count(); ++i) {
+                    text.push_back(record.get(i).toString());
+                }
+                ui->editResult->append(text.join(" | "));
+            }
         }
     } catch (const QString &error) {
         ui->editResult->setTextColor(QColor("#4F0000"));

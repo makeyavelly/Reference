@@ -8,30 +8,40 @@ Reference::Reference(const ReferenceHeader &header, const ReferenceTable &values
 {
     setHeader(header);
     appendIndex(indexes);
-    compress();
 }
 
-Reference *Reference::create(const QString &nameTable, const ReferenceIndexFields &indexes)
+Reference *Reference::create(const QString &script, const ReferenceIndexFields &indexes)
 {
     Reference *reference = new Reference;
-    sql::Table table = sql::Select(QString("SELECT * FROM \"%1\";").arg(nameTable));
-    reference->setHeader(table.header());
-    for (sql::Record record : table) {
-        ReferenceRecord newRecord;
-        for (int i = 0; i < record.count(); ++i) {
-            newRecord.push_back(record.get(i).toString());
-        }
-        reference->_values.push_back(newRecord);
-    }
+    reference->_script = script;
+    reference->loadData();
     reference->appendIndex(indexes);
-    reference->compress();
     return reference;
+}
+
+const QVector<ReferenceRecord *> Reference::getAll(const QString &index, const QString &value)
+{
+    ReferenceIndex &refIndex = getIndex(index);
+    return refIndex.value(value, QVector<ReferenceRecord*>());
+}
+
+QVector<QString> Reference::getAll(const QString &index, const QString &value, const QString &fieldName)
+{
+    QVector<QString> res;
+    const QVector<ReferenceRecord*> records = getAll(index, value);
+    int iField = getField(fieldName);
+    if (iField >= 0) {
+        for (const ReferenceRecord *record : records) {
+            res.push_back(record->at(iField));
+        }
+    }
+    return res;
 }
 
 const ReferenceRecord *Reference::get(const QString &index, const QString &value)
 {
-    ReferenceIndex &refIndex = getIndex(index);
-    return refIndex.value(value, nullptr);
+    QVector<ReferenceRecord*> records = getAll(index, value);
+    return records.isEmpty() ? nullptr : records.first();
 }
 
 QString Reference::get(const QString &index, const QString &value, const QString &fieldName)
@@ -42,6 +52,12 @@ QString Reference::get(const QString &index, const QString &value, const QString
         return QString();
     }
     return record->at(iField);
+}
+
+void Reference::reload()
+{
+    loadData();
+    updateIndex();
 }
 
 Reference::Reference()
@@ -55,22 +71,25 @@ void Reference::setHeader(const ReferenceHeader &header)
     }
 }
 
+void Reference::loadData()
+{
+    sql::Table table = sql::Select(_script);
+    setHeader(table.header());
+    _values.reserve(table.countRow());
+    for (sql::Record record : table) {
+        ReferenceRecord newRecord;
+        newRecord.reserve(record.count());
+        for (int i = 0; i < record.count(); ++i) {
+            newRecord.push_back(record.get(i).toString());
+        }
+        _values.push_back(newRecord);
+    }
+}
+
 void Reference::appendIndex(const QString &name)
 {
     ReferenceIndex index;
-    const QStringList names = name.split(",");
-    const QVector<int> fields = getFields(names);
-    if (fields.isEmpty()) {
-        throw QString("Задан неверный индекс");
-    }
-    for (int i = 0; i < _values.count(); ++i) {
-        ReferenceRecord &record =_values[i];
-        QStringList keys;
-        for (int i = 0; i < fields.count(); ++i) {
-            keys.push_back(record.at(fields.at(i)));
-        }
-        index.insert(keys.join(","), &record);
-    }
+    updateIndex(name, index);
     _indexes.insert(name, index);
 }
 
@@ -81,14 +100,36 @@ void Reference::appendIndex(const ReferenceIndexFields &indexes)
     }
 }
 
-void Reference::compress()
+void Reference::updateIndex()
 {
-#if QT_VERSION_MAJOR > 4
-    _values.shrink_to_fit();
-    for (ReferenceRecord &record : _values) {
-        record.shrink_to_fit();
+    for (const QString &key : _indexes.keys()) {
+        updateIndex(key, _indexes[key]);
     }
-#endif
+}
+
+void Reference::updateIndex(const QString &key, ReferenceIndex &index)
+{
+    index.clear();
+    const QStringList names = key.split(",");
+    const QVector<int> fields = getFields(names);
+    if (fields.isEmpty()) {
+        throw QString("Задан неверный индекс");
+    }
+    for (int i = 0; i < _values.count(); ++i) {
+        ReferenceRecord &record =_values[i];
+        QStringList keys;
+        for (int i = 0; i < fields.count(); ++i) {
+            keys.push_back(record.at(fields.at(i)));
+        }
+        QString key = keys.join(",");
+        if (index.contains(key)) {
+            index[key].push_back(&record);
+        } else {
+            QVector<ReferenceRecord*> values;
+            values.push_back(&record);
+            index.insert(key, values);
+        }
+    }
 }
 
 int Reference::getField(const QString &name) const
@@ -125,7 +166,12 @@ void ListReference::appendReference(const QString &name, Reference *reference)
 
 void ListReference::appendReference(const QString &name, const ReferenceIndexFields &indexes)
 {
-    appendReference(name, Reference::create(name, indexes));
+    appendReference(name, indexes, QString("SELECT * FROM \"%1\";").arg(name));
+}
+
+void ListReference::appendReference(const QString &name, const ReferenceIndexFields &indexes, const QString &script)
+{
+    appendReference(name, Reference::create(script, indexes));
 }
 
 const ReferenceRecord *ListReference::get(const QString &reference, const QString &index,
@@ -140,9 +186,31 @@ QString ListReference::get(const QString &reference, const QString &index,
     return getReference(reference)->get(index, value, fieldName);
 }
 
+const QVector<ReferenceRecord *> ListReference::getAll(const QString &reference, const QString &index, const QString &value)
+{
+    return getReference(reference)->getAll(index, value);
+}
+
+QVector<QString> ListReference::getAll(const QString &reference, const QString &index, const QString &value, const QString &fieldName)
+{
+    return getReference(reference)->getAll(index, value, fieldName);
+}
+
 void ListReference::clear()
 {
     _references.clear();
+}
+
+void ListReference::reload(const QString &nameTable)
+{
+    getReference(nameTable)->reload();
+}
+
+void ListReference::reload()
+{
+    foreach (const QString &key, _references.keys()) {
+        reload(key);
+    }
 }
 
 Reference *ListReference::getReference(const QString &name)
